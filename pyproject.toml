@@ -1,0 +1,36 @@
+[project]
+name = "toolgate"
+version = "0.4.0"
+description = "Policy-based runtime security gateway for tool-using LLM applications"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic==2.14.2",
+  "fastapi==0.115.6",
+  "httpx==0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.2.0",
+]
+serve = [
+  "uvicorn==0.34.0",
+]
+desktop = [
+  "pywebview==5.4",
+]
+
+[project.scripts]
+toolgate-desktop = "toolgate.lab.desktop:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

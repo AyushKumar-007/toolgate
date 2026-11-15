@@ -1,0 +1,54 @@
+{
+  "$defs": {
+    "Effect": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ],
+      "title": "Effect",
+      "type": "string"
+    },
+    "RuleId": {
+      "enum": [
+        "context",
+        "schema",
+        "tenant",
+        "ownership",
+        "actions",
+        "arguments",
+        "approval",
+        "default",
+        "prompt_only",
+        "direct"
+      ],
+      "title": "RuleId",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "minLength": 1,
+      "title": "Call Id",
+      "type": "string"
+    },
+    "effect": {
+      "$ref": "#/$defs/Effect"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "rule_id": {
+      "$ref": "#/$defs/RuleId"
+    }
+  },
+  "required": [
+    "call_id",
+    "effect",
+    "rule_id",
+    "reason"
+  ],
+  "title": "Decision",
+  "type": "object"
+}

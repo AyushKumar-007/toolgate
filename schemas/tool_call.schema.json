@@ -1,0 +1,41 @@
+{
+  "$defs": {
+    "ToolName": {
+      "enum": [
+        "list_records",
+        "read_record",
+        "search_records",
+        "create_record",
+        "update_record",
+        "delete_record",
+        "export_records",
+        "change_permissions"
+      ],
+      "title": "ToolName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "arguments": {
+      "additionalProperties": true,
+      "title": "Arguments",
+      "type": "object"
+    },
+    "call_id": {
+      "minLength": 1,
+      "title": "Call Id",
+      "type": "string"
+    },
+    "name": {
+      "$ref": "#/$defs/ToolName"
+    }
+  },
+  "required": [
+    "call_id",
+    "name",
+    "arguments"
+  ],
+  "title": "ToolCall",
+  "type": "object"
+}

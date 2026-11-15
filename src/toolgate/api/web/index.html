@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>toolgate · live lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css?v=5" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+    <header class="top">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <p class="brand-name">toolgate</p>
+          <p class="brand-sub">Live lab · real agent · gated tools</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="lab-pill" id="labPill" title="Ollama status">
+          <span class="lab-dot" id="labDot"></span>
+          <span id="labPillText">checking agent…</span>
+        </div>
+        <p class="meta">Ayush Kumar · 2022wa86339 · project</p>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="intro">
+        <h1>Watch a real agent propose tools · then watch toolgate decide.</h1>
+        <p class="lede">
+          The project uses <strong>Ollama</strong> to propose tool calls. The gateway path lights up in order:
+          principal → agent → policy → audit → tools or blocked.
+        </p>
+      </section>
+
+      <section class="lab-controls" id="labControls" aria-label="Live lab controls">
+        <div class="lab-grid">
+          <div class="control-block">
+            <label for="labPreset">Lab preset</label>
+            <select id="labPreset"></select>
+          </div>
+          <div class="control-block">
+            <label for="labPrincipal">Principal</label>
+            <select id="labPrincipal"></select>
+          </div>
+          <div class="control-block">
+            <span class="label">Mode</span>
+            <div class="mode-row" role="group" aria-label="Lab enforcement mode">
+              <button type="button" class="mode-btn lab-mode" data-mode="direct">direct</button>
+              <button type="button" class="mode-btn lab-mode" data-mode="prompt_only">prompt_only</button>
+              <button type="button" class="mode-btn lab-mode is-active" data-mode="gateway">gateway</button>
+            </div>
+          </div>
+        </div>
+        <p id="labHint" class="hint lab-hint"></p>
+        <div class="control-block lab-task-block">
+          <label for="labTask">Natural-language task (sent to Ollama)</label>
+          <textarea id="labTask" rows="3" placeholder="Ask the agent to use a tool…"></textarea>
+        </div>
+        <div class="lab-actions">
+          <button type="button" id="labRunBtn" class="primary">Run live agent → gateway</button>
+          <button type="button" id="labResetBtn" class="ghost">Reset store</button>
+          <p class="hint lab-model" id="labModelHint">Model: ·</p>
+        </div>
+      </section>
+
+      <section class="briefing" id="briefing" aria-label="Scenario briefing">
+        <div class="brief-top">
+          <div>
+            <p class="brief-kicker" id="briefKicker">Scenario</p>
+            <h2 id="briefTitle">Select a scenario</h2>
+            <p class="brief-summary" id="briefSummary"></p>
+          </div>
+          <div class="brief-meta">
+            <span class="brief-chip" id="briefTool">tool</span>
+            <span class="brief-chip expect" id="briefExpect">expected</span>
+          </div>
+        </div>
+        <ol class="brief-steps" id="briefSteps"></ol>
+        <div class="brief-protect" id="briefProtect" hidden>
+          <p class="brief-protect-label" id="briefProtectLabel">What this blocks</p>
+          <p id="briefProtectBody"></p>
+        </div>
+      </section>
+
+      <section class="flow" id="flowRoot" aria-label="Request workflow">
+        <div class="packet" id="packet" aria-hidden="true">
+          <span class="packet-core"></span>
+          <span class="packet-label" id="packetLabel">TOOL CALL</span>
+        </div>
+
+        <div class="flow-track" id="flowTrack">
+          <div class="node" data-node="user">
+            <span class="node-kicker">01</span>
+            <strong>User / App</strong>
+            <span class="node-copy" id="nodeUser">Authenticated principal</span>
+          </div>
+          <div class="edge" data-edge="e1"><span></span></div>
+
+          <div class="node" data-node="agent">
+            <span class="node-kicker">02</span>
+            <strong id="agentTitle">Agent</strong>
+            <span class="node-copy" id="nodeAgent">Proposes tool call</span>
+          </div>
+          <div class="edge" data-edge="e2"><span></span></div>
+
+          <div class="node" data-node="enforce">
+            <span class="node-kicker">03</span>
+            <strong>Enforcement</strong>
+            <span class="node-copy" id="nodeEnforce">Mode selected</span>
+          </div>
+          <div class="edge" data-edge="e3"><span></span></div>
+
+          <div class="node node-wide" data-node="policy">
+            <span class="node-kicker">04</span>
+            <strong>Policy checks</strong>
+            <div class="rules" id="ruleRail" aria-label="Policy rule sequence">
+              <span data-rule="context">context</span>
+              <span data-rule="schema">schema</span>
+              <span data-rule="tenant">tenant</span>
+              <span data-rule="ownership">ownership</span>
+              <span data-rule="actions">actions</span>
+              <span data-rule="arguments">arguments</span>
+              <span data-rule="approval">approval</span>
+            </div>
+          </div>
+          <div class="edge" data-edge="e4"><span></span></div>
+
+          <div class="node" data-node="decision">
+            <span class="node-kicker">05</span>
+            <strong>Decision</strong>
+            <span class="node-copy" id="nodeDecision">ALLOW / DENY</span>
+          </div>
+        </div>
+
+        <div class="branch">
+          <div class="node branch-node" data-node="audit">
+            <span class="node-kicker">06</span>
+            <strong>Audit log</strong>
+            <span class="node-copy" id="nodeAudit">Record every decision</span>
+          </div>
+          <div class="node branch-node" data-node="tools">
+            <span class="node-kicker">07</span>
+            <strong>Tool runtime</strong>
+            <span class="node-copy" id="nodeTools">Execute only on ALLOW</span>
+          </div>
+          <div class="node branch-node" data-node="blocked">
+            <span class="node-kicker">07</span>
+            <strong>Blocked</strong>
+            <span class="node-copy" id="nodeBlocked">No side effects</span>
+          </div>
+        </div>
+
+        <p class="flow-status" id="flowStatus">Idle · pick a preset and run the live agent.</p>
+      </section>
+
+      <section class="outcome" aria-live="polite">
+        <div id="verdict" class="verdict is-idle">
+          <p class="verdict-label">Waiting</p>
+          <p class="verdict-detail">The packet has not entered the pipeline yet.</p>
+        </div>
+        <div id="misuseCard" class="misuse-card is-idle" hidden>
+          <p class="misuse-kicker" id="misuseKicker">Impact</p>
+          <p class="misuse-body" id="misuseBody"></p>
+        </div>
+        <div class="panels panels-3">
+          <article>
+            <h2>Agent proposal</h2>
+            <pre id="agentOut" class="code">·</pre>
+          </article>
+          <article>
+            <h2>Packet / decisions</h2>
+            <pre id="decisionOut" class="code">·</pre>
+          </article>
+          <article>
+            <h2>Tool result / store</h2>
+            <pre id="resultOut" class="code">·</pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="audit-wrap">
+        <div class="audit-head">
+          <h2>Audit log</h2>
+          <p class="hint">Every decision is recorded, including denies.</p>
+        </div>
+        <div id="auditList" class="audit-list"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js?v=6"></script>
+  </body>
+</html>

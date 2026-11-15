@@ -1,0 +1,138 @@
+{
+  "$defs": {
+    "Label": {
+      "enum": [
+        "legitimate",
+        "attack"
+      ],
+      "title": "Label",
+      "type": "string"
+    },
+    "Principal": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/Role"
+        },
+        "tenant_id": {
+          "minLength": 1,
+          "title": "Tenant Id",
+          "type": "string"
+        },
+        "user_id": {
+          "minLength": 1,
+          "title": "User Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "tenant_id",
+        "role"
+      ],
+      "title": "Principal",
+      "type": "object"
+    },
+    "Role": {
+      "enum": [
+        "reader",
+        "editor",
+        "admin"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "ToolCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "call_id": {
+          "minLength": 1,
+          "title": "Call Id",
+          "type": "string"
+        },
+        "name": {
+          "$ref": "#/$defs/ToolName"
+        }
+      },
+      "required": [
+        "call_id",
+        "name",
+        "arguments"
+      ],
+      "title": "ToolCall",
+      "type": "object"
+    },
+    "ToolName": {
+      "enum": [
+        "list_records",
+        "read_record",
+        "search_records",
+        "create_record",
+        "update_record",
+        "delete_record",
+        "export_records",
+        "change_permissions"
+      ],
+      "title": "ToolName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "label": {
+      "$ref": "#/$defs/Label"
+    },
+    "principal": {
+      "$ref": "#/$defs/Principal"
+    },
+    "prompt_only_would_execute": {
+      "title": "Prompt Only Would Execute",
+      "type": "boolean"
+    },
+    "proposals": {
+      "items": {
+        "$ref": "#/$defs/ToolCall"
+      },
+      "minItems": 1,
+      "title": "Proposals",
+      "type": "array"
+    },
+    "task": {
+      "minLength": 1,
+      "title": "Task",
+      "type": "string"
+    },
+    "threat_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Threat Id"
+    }
+  },
+  "required": [
+    "case_id",
+    "label",
+    "task",
+    "principal",
+    "proposals",
+    "prompt_only_would_execute"
+  ],
+  "title": "Case",
+  "type": "object"
+}

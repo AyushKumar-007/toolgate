@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "Decision": {
+      "additionalProperties": false,
+      "properties": {
+        "call_id": {
+          "minLength": 1,
+          "title": "Call Id",
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/Effect"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "rule_id": {
+          "$ref": "#/$defs/RuleId"
+        }
+      },
+      "required": [
+        "call_id",
+        "effect",
+        "rule_id",
+        "reason"
+      ],
+      "title": "Decision",
+      "type": "object"
+    },
+    "Effect": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ],
+      "title": "Effect",
+      "type": "string"
+    },
+    "Mode": {
+      "enum": [
+        "direct",
+        "prompt_only",
+        "gateway"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "RuleId": {
+      "enum": [
+        "context",
+        "schema",
+        "tenant",
+        "ownership",
+        "actions",
+        "arguments",
+        "approval",
+        "default",
+        "prompt_only",
+        "direct"
+      ],
+      "title": "RuleId",
+      "type": "string"
+    },
+    "ToolResult": {
+      "additionalProperties": false,
+      "properties": {
+        "call_id": {
+          "minLength": 1,
+          "title": "Call Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "status": {
+          "$ref": "#/$defs/ToolStatus"
+        }
+      },
+      "required": [
+        "call_id",
+        "status"
+      ],
+      "title": "ToolResult",
+      "type": "object"
+    },
+    "ToolStatus": {
+      "enum": [
+        "ok",
+        "error"
+      ],
+      "title": "ToolStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "decision_latency_ms": {
+      "minimum": 0,
+      "title": "Decision Latency Ms",
+      "type": "number"
+    },
+    "decisions": {
+      "items": {
+        "$ref": "#/$defs/Decision"
+      },
+      "title": "Decisions",
+      "type": "array"
+    },
+    "executed_call_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Executed Call Ids",
+      "type": "array"
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/ToolResult"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "tool_latency_ms": {
+      "minimum": 0,
+      "title": "Tool Latency Ms",
+      "type": "number"
+    }
+  },
+  "required": [
+    "case_id",
+    "mode",
+    "decisions",
+    "results",
+    "executed_call_ids",
+    "decision_latency_ms",
+    "tool_latency_ms"
+  ],
+  "title": "Outcome",
+  "type": "object"
+}

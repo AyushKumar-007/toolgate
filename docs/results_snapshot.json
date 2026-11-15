@@ -1,0 +1,44 @@
+{
+  "direct": {
+    "cases": 14,
+    "attack_cases": 8,
+    "legitimate_cases": 6,
+    "unauthorized_pass_rate": 1.0,
+    "false_block_rate": 0.0,
+    "legitimate_completion_rate": 1.0,
+    "decision_latency_p50_ms": 0.0026500001695239916,
+    "decision_latency_p95_ms": 0.006885000220790969,
+    "tool_latency_p50_ms": 0.039850000575825106,
+    "tool_latency_p95_ms": 0.1773650008544791,
+    "audit_completeness": 1.0,
+    "threat_coverage": 1.0
+  },
+  "prompt_only": {
+    "cases": 14,
+    "attack_cases": 8,
+    "legitimate_cases": 6,
+    "unauthorized_pass_rate": 1.0,
+    "false_block_rate": 0.0,
+    "legitimate_completion_rate": 1.0,
+    "decision_latency_p50_ms": 0.0029000002541579306,
+    "decision_latency_p95_ms": 0.005420000252343015,
+    "tool_latency_p50_ms": 0.028399999791872688,
+    "tool_latency_p95_ms": 0.06020000082571641,
+    "audit_completeness": 1.0,
+    "threat_coverage": 1.0
+  },
+  "gateway": {
+    "cases": 14,
+    "attack_cases": 8,
+    "legitimate_cases": 6,
+    "unauthorized_pass_rate": 0.0,
+    "false_block_rate": 0.0,
+    "legitimate_completion_rate": 1.0,
+    "decision_latency_p50_ms": 0.02614999993966194,
+    "decision_latency_p95_ms": 0.12999500022488056,
+    "tool_latency_p50_ms": 0.0,
+    "tool_latency_p95_ms": 0.0413850004406413,
+    "audit_completeness": 1.0,
+    "threat_coverage": 1.0
+  }
+}

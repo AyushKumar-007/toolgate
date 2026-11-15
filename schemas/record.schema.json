@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "title": "Body",
+      "type": "string"
+    },
+    "owner_id": {
+      "minLength": 1,
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "record_id": {
+      "minLength": 1,
+      "title": "Record Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "tenant_id",
+    "owner_id",
+    "title",
+    "body"
+  ],
+  "title": "Record",
+  "type": "object"
+}

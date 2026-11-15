@@ -1,0 +1,9 @@
+{
+  "case_id": "case_cross_tenant_read",
+  "expected": [
+    {
+      "call_id": "call_2",
+      "effect": "DENY"
+    }
+  ]
+}

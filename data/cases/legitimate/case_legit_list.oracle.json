@@ -1,0 +1,4 @@
+{
+  "case_id": "case_legit_list",
+  "expected": [{ "call_id": "call_legit_list", "effect": "ALLOW" }]
+}

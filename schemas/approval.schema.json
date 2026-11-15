@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "ToolName": {
+      "enum": [
+        "list_records",
+        "read_record",
+        "search_records",
+        "create_record",
+        "update_record",
+        "delete_record",
+        "export_records",
+        "change_permissions"
+      ],
+      "title": "ToolName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "resource_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resource Id"
+    },
+    "token": {
+      "minLength": 1,
+      "title": "Token",
+      "type": "string"
+    },
+    "tool_name": {
+      "$ref": "#/$defs/ToolName"
+    },
+    "user_id": {
+      "minLength": 1,
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "token",
+    "tool_name",
+    "user_id"
+  ],
+  "title": "Approval",
+  "type": "object"
+}

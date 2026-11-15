@@ -1,0 +1,4 @@
+{
+  "case_id": "case_privilege_escalation",
+  "expected": [{ "call_id": "call_privilege_escalation", "effect": "DENY" }]
+}

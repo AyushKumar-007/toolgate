@@ -1,0 +1,36 @@
+{
+  "$defs": {
+    "Role": {
+      "enum": [
+        "reader",
+        "editor",
+        "admin"
+      ],
+      "title": "Role",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "role": {
+      "$ref": "#/$defs/Role"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "user_id": {
+      "minLength": 1,
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "tenant_id",
+    "role"
+  ],
+  "title": "Principal",
+  "type": "object"
+}

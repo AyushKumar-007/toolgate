@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "Effect": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ],
+      "title": "Effect",
+      "type": "string"
+    },
+    "RuleId": {
+      "enum": [
+        "context",
+        "schema",
+        "tenant",
+        "ownership",
+        "actions",
+        "arguments",
+        "approval",
+        "default",
+        "prompt_only",
+        "direct"
+      ],
+      "title": "RuleId",
+      "type": "string"
+    },
+    "ToolName": {
+      "enum": [
+        "list_records",
+        "read_record",
+        "search_records",
+        "create_record",
+        "update_record",
+        "delete_record",
+        "export_records",
+        "change_permissions"
+      ],
+      "title": "ToolName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "audit_id": {
+      "minLength": 1,
+      "title": "Audit Id",
+      "type": "string"
+    },
+    "call_id": {
+      "minLength": 1,
+      "title": "Call Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "effect": {
+      "$ref": "#/$defs/Effect"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "rule_id": {
+      "$ref": "#/$defs/RuleId"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "tool_name": {
+      "$ref": "#/$defs/ToolName"
+    },
+    "user_id": {
+      "minLength": 1,
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "audit_id",
+    "call_id",
+    "effect",
+    "rule_id",
+    "reason",
+    "user_id",
+    "tenant_id",
+    "tool_name",
+    "created_at"
+  ],
+  "title": "AuditRecord",
+  "type": "object"
+}

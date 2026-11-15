@@ -1,0 +1,4 @@
+{
+  "case_id": "case_export_no_approval",
+  "expected": [{ "call_id": "call_export_no_approval", "effect": "DENY" }]
+}

@@ -1,0 +1,34 @@
+{
+  "$defs": {
+    "ToolStatus": {
+      "enum": [
+        "ok",
+        "error"
+      ],
+      "title": "ToolStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "minLength": 1,
+      "title": "Call Id",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "status": {
+      "$ref": "#/$defs/ToolStatus"
+    }
+  },
+  "required": [
+    "call_id",
+    "status"
+  ],
+  "title": "ToolResult",
+  "type": "object"
+}

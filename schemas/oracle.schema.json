@@ -1,0 +1,53 @@
+{
+  "$defs": {
+    "Effect": {
+      "enum": [
+        "ALLOW",
+        "DENY"
+      ],
+      "title": "Effect",
+      "type": "string"
+    },
+    "ExpectedEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "call_id": {
+          "minLength": 1,
+          "title": "Call Id",
+          "type": "string"
+        },
+        "effect": {
+          "$ref": "#/$defs/Effect"
+        }
+      },
+      "required": [
+        "call_id",
+        "effect"
+      ],
+      "title": "ExpectedEffect",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "expected": {
+      "items": {
+        "$ref": "#/$defs/ExpectedEffect"
+      },
+      "minItems": 1,
+      "title": "Expected",
+      "type": "array"
+    }
+  },
+  "required": [
+    "case_id",
+    "expected"
+  ],
+  "title": "Oracle",
+  "type": "object"
+}

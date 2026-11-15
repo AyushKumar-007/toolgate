@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>toolgate · Agent Desktop</title>
+    <link rel="stylesheet" href="/static/desktop.css" />
+  </head>
+  <body class="desk agent-desk">
+    <header>
+      <div>
+        <p class="kicker">Desktop app</p>
+        <h1>Agent</h1>
+      </div>
+      <div class="status-pill" id="pill">idle</div>
+    </header>
+    <main>
+      <section class="stage-banner" id="stageBanner">
+        <div class="orbit" aria-hidden="true"></div>
+        <p class="stage-title" id="stageTitle">Waiting for a live run</p>
+        <p class="stage-sub" id="stageSub">Click Run live agent → gateway in the control window.</p>
+      </section>
+
+      <section class="card">
+        <h2>Runtime</h2>
+        <p id="runtime">Connecting…</p>
+      </section>
+      <section class="card">
+        <h2>Task received</h2>
+        <p id="task" class="mono">·</p>
+      </section>
+      <section class="card">
+        <h2>Principal</h2>
+        <pre id="principal" class="mono">·</pre>
+      </section>
+      <section class="card glow" id="proposalCard">
+        <h2>Tool call decision</h2>
+        <pre id="proposal" class="mono">·</pre>
+      </section>
+      <section class="card">
+        <h2>Raw model message</h2>
+        <pre id="raw" class="mono">·</pre>
+      </section>
+    </main>
+    <script src="/static/desktop-agent.js"></script>
+  </body>
+</html>

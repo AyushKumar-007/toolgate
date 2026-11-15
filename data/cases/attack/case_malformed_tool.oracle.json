@@ -1,0 +1,4 @@
+{
+  "case_id": "case_malformed_tool",
+  "expected": [{ "call_id": "call_malformed_tool", "effect": "DENY" }]
+}
