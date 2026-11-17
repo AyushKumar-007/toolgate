@@ -15,6 +15,15 @@ class AuditService:
         self._ids = count(1)
         self.rows: list[AuditRecord] = []
 
+    def adopt(self, rows: list[AuditRecord]) -> None:
+        self.rows = list(rows)
+        highest = 0
+        for row in self.rows:
+            suffix = row.audit_id.removeprefix("aud_")
+            if suffix.isdigit():
+                highest = max(highest, int(suffix))
+        self._ids = count(highest + 1)
+
     def record(self, decision: Decision, principal: Principal, call: ToolCall) -> AuditRecord:
         row = AuditRecord(
             audit_id=f"aud_{next(self._ids)}",

@@ -6,6 +6,18 @@ from toolgate.domain.models import Approval, Decision, Principal, Record, ToolCa
 from toolgate.domain.vocab import APPROVAL_REQUIRED, Effect, RuleId, ToolName
 
 
+def _bound_resource(call: ToolCall) -> str | None:
+    if call.name is ToolName.delete_record:
+        value = call.arguments.get("record_id")
+    elif call.name is ToolName.export_records:
+        value = call.arguments.get("tenant_id")
+    elif call.name is ToolName.change_permissions:
+        value = call.arguments.get("user_id")
+    else:
+        value = None
+    return value if isinstance(value, str) and value else None
+
+
 def check(
     call: ToolCall,
     principal: Principal,
@@ -34,18 +46,16 @@ def check(
             continue
         if approval.expires_at is not None and approval.expires_at <= now:
             continue
-        if call.name is ToolName.delete_record:
-            resource = call.arguments.get("record_id")
-            if approval.resource_id not in (None, resource):
-                continue
-        if call.name is ToolName.export_records:
-            resource = call.arguments.get("tenant_id")
-            if approval.resource_id not in (None, resource):
-                continue
-        if call.name is ToolName.change_permissions:
-            resource = call.arguments.get("user_id")
-            if approval.resource_id not in (None, resource):
-                continue
+        if approval.consumed_at is not None:
+            return Decision(
+                call_id=call.call_id,
+                effect=Effect.DENY,
+                rule_id=RuleId.approval,
+                reason="approval token was already used",
+            )
+        resource = _bound_resource(call)
+        if approval.resource_id is None or approval.resource_id != resource:
+            continue
         del record
         return None
 

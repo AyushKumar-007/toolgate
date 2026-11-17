@@ -1,7 +1,11 @@
-"""Deny when a mutating call targets a record the principal does not own."""
+"""Deny a create, update, or delete when the caller does not own the record.
+
+Every role, including admin, must own the record. A matching approval does not
+skip this check. Tenant isolation still runs first.
+"""
 
 from toolgate.domain.models import Approval, Decision, Principal, Record, ToolCall
-from toolgate.domain.vocab import Effect, Role, RuleId, ToolName
+from toolgate.domain.vocab import Effect, RuleId, ToolName
 
 OWNERSHIP_TOOLS = frozenset(
     {
@@ -20,8 +24,6 @@ def check(
 ) -> Decision | None:
     del approvals
     if call.name not in OWNERSHIP_TOOLS:
-        return None
-    if principal.role is Role.admin:
         return None
 
     if call.name is ToolName.create_record:

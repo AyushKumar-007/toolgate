@@ -55,7 +55,7 @@ def test_ollama_agent_uses_poster() -> None:
             "role": "assistant",
             "tool_calls": [
                 {
-                    "id": "call_1",
+                    "id": "demo_1",
                     "function": {
                         "name": "list_records",
                         "arguments": {"tenant_id": "ten_a"},
@@ -64,10 +64,10 @@ def test_ollama_agent_uses_poster() -> None:
             ],
         }
     )
-    agent = OllamaAgent(poster=poster, model="test-model")
+    agent = OllamaAgent(poster=poster, model="demo")
     assert isinstance(agent, Agent)
     calls = agent.propose(case)
-    assert calls[0].call_id == "call_1"
+    assert calls[0].call_id == "demo_1"
     assert poster.calls[0][0].endswith("/api/chat")
     assert "tools" in poster.calls[0][1]
 

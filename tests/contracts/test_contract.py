@@ -10,7 +10,7 @@ from tests.fakes import (
     FakeEnforcement,
     FakePolicy,
     FakeToolRuntime,
-    seeded_store,
+    demo_store,
 )
 from toolgate.domain import (
     CONTRACT_VERSION,
@@ -149,7 +149,7 @@ def test_example_cases_and_oracles() -> None:
 
 
 def test_fake_store_returns_seeded_record() -> None:
-    store = seeded_store()
+    store = demo_store()
     assert isinstance(store, Store)
     found = store.get_record("rec_a1")
     assert found is not None
@@ -202,7 +202,7 @@ def test_fake_enforcement_modes() -> None:
 
 
 def test_set_role_updates_user() -> None:
-    store = seeded_store()
+    store = demo_store()
     updated = store.set_role("usr_ana", Role.admin)
     assert updated is not None
     assert updated.role is Role.admin

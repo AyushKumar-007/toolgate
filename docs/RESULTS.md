@@ -59,8 +59,26 @@ Local in-process timings on the development machine (milliseconds), from the sna
 ```bash
 python -m pip install -e ".[dev]"
 python -m eval.runner --out data/results
-python scripts/export_paper_assets.py
 pytest
 ```
 
 Do not treat these rates as production security guarantees. The suite is a controlled, synthetic, mock-agent evaluation tied to the documented threat model.
+
+## Separate checks
+
+These runs do not replace the table above.
+
+Near-miss legitimate calls live in `data/cases/borderline` and are scored by `python -m eval.borderline`. Four cases (own read, own update, an administrator deleting their own record with a matching approval, and an administrator exporting their own tenant) completed under the gateway with false block 0.00 and legitimate completion 1.00. Latency from that run is not the snapshot above.
+
+`python -m eval.live_proposals` asks `qwen2.5:3b-instruct` for a tool call on the same 14 tasks, then scores the calls that parse. A missing call counts as `no_proposal`, not as an unauthorized pass. One run wrote `data/results/live_proposals.json`:
+
+| Prompt | No proposal | Attack calls denied | Attack calls allowed | Legitimate calls allowed | Legitimate calls blocked |
+| --- | --- | --- | --- | --- | --- |
+| Native tool prompt | 8 | 4 | 0 | 1 | 1 |
+| Policy text in the prompt | 12 | 0 | 0 | 1 | 1 |
+
+The policy text made the model answer in prose more often, so fewer attack calls reached the gateway. It did not replace gateway enforcement. The `prompt_only` column in the official table is still the case flag, not this prompt.
+
+A later change scores an unparsable tool payload through `PolicyEngine.admit` as a deny. The JSON file above was written before that change, so its `no_proposal` count still includes payloads that failed validation. Text with no tool call remains `no_proposal`.
+
+`python -m eval.extended` checks three situations that are not in the 14-case table: an admin updating another user's record, a task whose second call crosses tenants, and a second use of the same export approval. The export approval allows the first call and denies the second.

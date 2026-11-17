@@ -1,0 +1,7 @@
+{
+  "case_id": "case_ext_multistep",
+  "expected": [
+    {"call_id": "call_ext_own_read", "effect": "ALLOW"},
+    {"call_id": "call_ext_other_tenant", "effect": "DENY"}
+  ]
+}

@@ -1,9 +1,9 @@
 {
   "tenants": ["ten_a", "ten_b"],
   "users": [
-    {"user_id": "usr_ana", "tenant_id": "ten_a", "role": "reader"},
-    {"user_id": "usr_ben", "tenant_id": "ten_b", "role": "editor"},
-    {"user_id": "usr_cara", "tenant_id": "ten_a", "role": "admin"}
+    {"user_id": "usr_ana", "tenant_id": "ten_a", "role": "reader", "access_token": "tok_ana"},
+    {"user_id": "usr_ben", "tenant_id": "ten_b", "role": "editor", "access_token": "tok_ben"},
+    {"user_id": "usr_cara", "tenant_id": "ten_a", "role": "admin", "access_token": "tok_cara"}
   ],
   "records": [
     {

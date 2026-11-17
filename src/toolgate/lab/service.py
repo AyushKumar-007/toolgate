@@ -9,12 +9,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from toolgate.agent.mock import MockAgent
-from toolgate.agent.ollama import OllamaAgent, ping_ollama
-from toolgate.domain.models import Case, Outcome, Principal, ToolCall
+from toolgate.agent.ollama import OllamaAgent, UnparsedToolCall, ping_ollama
+from toolgate.domain.models import Case, Decision, Outcome, Principal, ToolCall
 from toolgate.domain.protocols import AuditLog
 from toolgate.domain.vocab import Effect, Label, Mode, ToolName
 from toolgate.enforcement.mode import ModeEnforcement
 from toolgate.lab.presets import PRESETS
+from toolgate.policy.engine import PolicyEngine
 from toolgate.store.sqlite import SqliteStore
 
 
@@ -26,7 +27,8 @@ class LabEvent(BaseModel):
 
 class LabRunRequest(BaseModel):
     task: str = Field(min_length=1)
-    principal: Principal
+    access_token: str | None = None
+    principal: Principal | None = None
     mode: Mode = Mode.gateway
     model: str | None = None
     preset_id: str | None = None
@@ -40,8 +42,9 @@ class LabProposeResponse(BaseModel):
     agent_backend: Literal["ollama", "fallback"]
     model: str
     task: str
-    principal: Principal
-    proposals: list[ToolCall]
+    principal: Principal | None = None
+    proposals: list[ToolCall] = Field(default_factory=list)
+    rejected: list[dict[str, Any]] = Field(default_factory=list)
     events: list[LabEvent]
     agent_raw: dict[str, Any] = Field(default_factory=dict)
     misuse_note: str | None = None
@@ -50,9 +53,11 @@ class LabProposeResponse(BaseModel):
 class LabEnforceRequest(BaseModel):
     run_id: str = Field(min_length=1)
     task: str = Field(min_length=1)
-    principal: Principal
+    access_token: str | None = None
+    principal: Principal | None = None
     mode: Mode = Mode.gateway
-    proposals: list[ToolCall] = Field(min_length=1)
+    proposals: list[ToolCall] = Field(default_factory=list)
+    rejected: list[dict[str, Any]] = Field(default_factory=list)
     agent_backend: Literal["ollama", "fallback"] = "ollama"
     model: str = "ollama"
     preset_id: str | None = None
@@ -66,7 +71,7 @@ class LabRunResponse(BaseModel):
     agent_backend: Literal["ollama", "fallback"]
     model: str
     task: str
-    principal: Principal
+    principal: Principal | None = None
     proposals: list[ToolCall]
     outcome: Outcome
     events: list[LabEvent]
@@ -94,7 +99,7 @@ MISUSE_NOTES = {
 def _note_for_outcome(
     *,
     preset_id: str | None,
-    principal: Principal,
+    principal: Principal | None = None,
     outcome: Outcome | None,
 ) -> str | None:
     """Prefer the real deny reason over a stale attack-preset caption."""
@@ -190,7 +195,8 @@ class LabService:
 
         agent = OllamaAgent(model=model, base_url=self.base_url)
         backend: Literal["ollama", "fallback"] = "ollama"
-        proposals: list[ToolCall]
+        proposals: list[ToolCall] = []
+        rejected: list[dict[str, Any]] = []
         raw: dict[str, Any] = {}
 
         try:
@@ -207,6 +213,16 @@ class LabService:
                         "proposals": [p.model_dump(mode="json") for p in proposals],
                         "raw": raw,
                     },
+                )
+            )
+        except UnparsedToolCall as exc:
+            raw = agent.last_raw or {}
+            rejected = exc.raw_calls
+            events.append(
+                LabEvent(
+                    stage="agent_propose",
+                    message="Agent returned a tool call the schema rejected",
+                    detail={"rejected": rejected, "raw": raw},
                 )
             )
         except Exception as exc:  # noqa: BLE001
@@ -233,6 +249,7 @@ class LabService:
             task=request.task,
             principal=request.principal,
             proposals=proposals,
+            rejected=rejected,
             events=events,
             agent_raw=raw,
             misuse_note=_note_for_outcome(
@@ -242,17 +259,52 @@ class LabService:
             ),
         )
 
-    def enforce(self, request: LabEnforceRequest) -> LabRunResponse:
-        preset = next((p for p in PRESETS if p["id"] == request.preset_id), None)
-        case = Case(
-            case_id=request.run_id,
-            label=Label.attack if preset and preset.get("kind") == "attack" else Label.legitimate,
-            threat_id="lab_live" if preset and preset.get("kind") == "attack" else None,
-            task=request.task,
-            principal=request.principal,
-            proposals=request.proposals,
-            prompt_only_would_execute=True,
+    def _admit_rejected(self, request: LabEnforceRequest) -> list[Decision]:
+        engine = PolicyEngine()
+        principal = request.principal
+        assert principal is not None
+        decisions: list[Decision] = []
+        for raw in request.rejected:
+            arguments = raw.get("arguments") if isinstance(raw.get("arguments"), dict) else {}
+            record = None
+            record_id = arguments.get("record_id")
+            if isinstance(record_id, str) and record_id:
+                record = self.store.get_record(record_id)
+            token = arguments.get("approval_token")
+            approvals = []
+            if isinstance(token, str) and token:
+                approval = self.store.get_approval(token)
+                if approval is not None:
+                    approvals = [approval]
+            decision = engine.admit(
+                raw,
+                principal.model_dump(mode="json"),
+                record,
+                approvals,
+            )
+            decisions.append(decision)
+            self._audit_rejected(principal, raw, decision)
+        return decisions
+
+    def _audit_rejected(self, principal: Principal, raw: dict[str, Any], decision: Decision) -> None:
+        if self.audit is None:
+            return
+        try:
+            name = ToolName(raw.get("name"))
+        except ValueError:
+            return
+        arguments = raw.get("arguments") if isinstance(raw.get("arguments"), dict) else {}
+        call = ToolCall.model_construct(
+            call_id=decision.call_id,
+            name=name,
+            arguments=arguments,
         )
+        self.audit.record(decision, principal, call)
+
+    def enforce(self, request: LabEnforceRequest) -> LabRunResponse:
+        if not request.proposals and not request.rejected:
+            raise ValueError("no tool call to enforce")
+        preset = next((p for p in PRESETS if p["id"] == request.preset_id), None)
         events = list(request.events)
         events.append(
             LabEvent(
@@ -262,13 +314,44 @@ class LabService:
             )
         )
 
-        enforcement = ModeEnforcement(
-            request.mode,
-            self.store,
-            agent=MockAgent(),
-            audit=self.audit,
+        decisions: list[Decision] = []
+        results = []
+        executed: list[str] = []
+        decision_ms = 0.0
+        tool_ms = 0.0
+        if request.proposals:
+            case = Case(
+                case_id=request.run_id,
+                label=Label.attack if preset and preset.get("kind") == "attack" else Label.legitimate,
+                threat_id="lab_live" if preset and preset.get("kind") == "attack" else None,
+                task=request.task,
+                principal=request.principal,
+                proposals=request.proposals,
+                prompt_only_would_execute=True,
+            )
+            enforcement = ModeEnforcement(
+                request.mode,
+                self.store,
+                agent=MockAgent(),
+                audit=self.audit,
+            )
+            ran = enforcement.run(case)
+            decisions.extend(ran.decisions)
+            results.extend(ran.results)
+            executed.extend(ran.executed_call_ids)
+            decision_ms += ran.decision_latency_ms
+            tool_ms += ran.tool_latency_ms
+        if request.rejected:
+            decisions.extend(self._admit_rejected(request))
+        outcome = Outcome(
+            case_id=request.run_id,
+            mode=request.mode,
+            decisions=decisions,
+            results=results,
+            executed_call_ids=executed,
+            decision_latency_ms=decision_ms,
+            tool_latency_ms=tool_ms,
         )
-        outcome = enforcement.run(case)
 
         for decision in outcome.decisions:
             events.append(
@@ -338,6 +421,7 @@ class LabService:
                 principal=proposed.principal,
                 mode=request.mode,
                 proposals=proposed.proposals,
+                rejected=proposed.rejected,
                 agent_backend=proposed.agent_backend,
                 model=proposed.model,
                 preset_id=request.preset_id,

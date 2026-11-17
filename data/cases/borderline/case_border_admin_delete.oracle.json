@@ -1,0 +1,4 @@
+{
+  "case_id": "case_border_admin_delete",
+  "expected": [{"call_id": "call_border_admin_delete", "effect": "ALLOW"}]
+}

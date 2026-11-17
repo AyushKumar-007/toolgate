@@ -59,10 +59,14 @@ The page animates the packet through principal → Ollama agent → policy → a
 
 ## API
 
-- `GET /lab/status` — Ollama reachability, models, presets, principals
-- `POST /lab/run` — `{ task, principal, mode, model?, preset_id?, allow_fallback }`
+- `GET /lab/status` — Ollama reachability, models, presets, and principals. Seed access tokens are not included.
+- `POST /reset` — clears the store, reseeds it, and drops open sessions.
+- `POST /lab/session` — `{ user_id }` returns a session. Send it as `Authorization: Bearer`.
+- `POST /lab/run` — the bearer token identifies the caller. A principal in the body is ignored.
 
-Attack presets may fall back to a scripted adversarial proposal if the model refuses or returns an unusable call, so the gateway still shows the DENY path.
+The interface keeps its store in `data/runtime/toolgate.sqlite`. Measured cases use a fresh in-memory store instead.
+
+If the model returns no tool call, a preset can fall back to its scripted call and the interface labels that fallback. A tool payload that does not parse is denied and is not executed.
 
 ## Companion pages
 

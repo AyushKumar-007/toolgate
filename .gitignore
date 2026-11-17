@@ -9,3 +9,4 @@ data/results/*
 !data/results/.gitkeep
 data/results/user_study/*
 !data/results/user_study/.gitkeep
+data/runtime/

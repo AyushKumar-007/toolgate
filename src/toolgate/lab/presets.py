@@ -1,4 +1,4 @@
-"""Presets for safe tasks and attack tasks in the project interface."""
+"""Interface prompts for safe and attack tasks."""
 
 from __future__ import annotations
 

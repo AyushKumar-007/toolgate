@@ -29,7 +29,7 @@ async function refreshStatus() {
 function fingerprint(data) {
   if (!data || !data.run_id) return null;
   const effect = data.outcome?.decisions?.[0]?.effect || "";
-  return [data.run_id, data.status || "", effect].join("|");
+  return [data.run_id, data.status || "", effect, data.agent_backend || ""].join("|");
 }
 
 function setStage(phase, title, sub) {
@@ -68,10 +68,15 @@ async function playCallingAnimation(data) {
       ? `proposed · ${data.model}`
       : `fallback · ${data.model}`;
 
+  const fallback = data.agent_backend === "fallback";
   setStage(
     "decided",
-    "Agent decided to call a tool",
-    call ? `Selected ${call.name}` : "Selected a tool call"
+    fallback ? "Preset call submitted" : "Agent decided to call a tool",
+    fallback
+      ? "Ollama did not return a tool call. The preset's scripted call was sent to the gateway."
+      : call
+        ? `Selected ${call.name}`
+        : "Selected a tool call"
   );
   proposal.textContent = call
     ? JSON.stringify(
@@ -128,21 +133,25 @@ function renderOutcome(data) {
     ? `allowed · ${data.model || "gateway"}`
     : `denied · ${decision?.rule_id || "policy"}`;
 
+  const fallback = data.agent_backend === "fallback";
+  const source = fallback
+    ? "Preset scripted call"
+    : "Model proposal";
   if (allowed) {
     setStage(
       "allow",
       "Tool call allowed",
       call
-        ? `Gateway ALLOW · ${call.name} may execute`
-        : "Gateway ALLOW · tool may execute"
+        ? `${source} · gateway ALLOW · ${call.name} may execute`
+        : `${source} · gateway ALLOW · tool may execute`
     );
   } else {
     setStage(
       "deny",
       "Tool call denied",
       decision
-        ? `Gateway DENY · ${decision.rule_id} · ${decision.reason}`
-        : "Gateway DENY · tool runtime skipped"
+        ? `${source} · gateway DENY · ${decision.rule_id} · ${decision.reason}`
+        : `${source} · gateway DENY · tool runtime skipped`
     );
   }
 

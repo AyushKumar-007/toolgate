@@ -8,6 +8,8 @@ import urllib.request
 import uuid
 from typing import Any, Protocol
 
+from pydantic import ValidationError
+
 from toolgate.domain.models import Case, ToolCall
 from toolgate.domain.vocab import REQUIRED_ARGUMENTS, SEARCH_FIELDS, ToolName
 
@@ -15,7 +17,7 @@ TOOL_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.list_records: "List all records in a tenant.",
     ToolName.read_record: "Read one record by record_id.",
     ToolName.search_records: "Search records in a tenant by title or body substring.",
-    ToolName.create_record: "Create a record; owner_id must be the caller for non-admins.",
+    ToolName.create_record: "Create a record; owner_id must be the caller.",
     ToolName.update_record: "Update fields on an owned record.",
     ToolName.delete_record: "Delete a record (high-risk; needs approval_token).",
     ToolName.export_records: "Export all records for a tenant (high-risk; needs approval_token).",
@@ -105,6 +107,14 @@ def normalize_arguments(raw: Any) -> dict[str, Any]:
     return raw
 
 
+class UnparsedToolCall(ValueError):
+    """The model returned a tool payload that is not a valid ToolCall."""
+
+    def __init__(self, raw_calls: list[dict[str, Any]]) -> None:
+        self.raw_calls = raw_calls
+        super().__init__("tool call could not be parsed")
+
+
 def tool_calls_from_message(message: dict[str, Any]) -> list[ToolCall]:
     raw_calls = message.get("tool_calls") or []
     if not isinstance(raw_calls, list) or not raw_calls:
@@ -117,18 +127,24 @@ def tool_calls_from_message(message: dict[str, Any]) -> list[ToolCall]:
         raise ValueError("Ollama returned no tool_calls")
 
     parsed: list[ToolCall] = []
+    rejected: list[dict[str, Any]] = []
     for index, item in enumerate(raw_calls):
         if not isinstance(item, dict):
             continue
         fn = item.get("function") or item
         name = fn.get("name")
-        args = normalize_arguments(fn.get("arguments") or {})
+        try:
+            args = normalize_arguments(fn.get("arguments") or {})
+        except (ValueError, json.JSONDecodeError):
+            args = fn.get("arguments")
         call_id = item.get("id") or f"ollama_{uuid.uuid4().hex[:10]}_{index}"
-        parsed.append(
-            ToolCall.model_validate(
-                {"call_id": str(call_id), "name": name, "arguments": args}
-            )
-        )
+        raw = {"call_id": str(call_id), "name": name, "arguments": args}
+        try:
+            parsed.append(ToolCall.model_validate(raw))
+        except ValidationError:
+            rejected.append(raw)
+    if rejected:
+        raise UnparsedToolCall(rejected)
     if not parsed:
         raise ValueError("Ollama tool_calls could not be parsed")
     return parsed
@@ -155,10 +171,12 @@ class OllamaAgent:
         model: str = "qwen2.5:3b-instruct",
         base_url: str = "http://127.0.0.1:11434",
         poster: HttpPoster | None = None,
+        system_prompt=None,
     ) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.poster = poster or UrllibPoster()
+        self.system_prompt = system_prompt or build_system_prompt
         self.last_raw: dict[str, Any] | None = None
 
     def propose(self, case: Case) -> list[ToolCall]:
@@ -166,7 +184,7 @@ class OllamaAgent:
             "model": self.model,
             "stream": False,
             "messages": [
-                {"role": "system", "content": build_system_prompt(case)},
+                {"role": "system", "content": self.system_prompt(case)},
                 {"role": "user", "content": case.task},
             ],
             "tools": ollama_tool_schemas(),

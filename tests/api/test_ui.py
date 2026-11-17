@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from toolgate.api import create_app
 
 
-def test_home_and_cases() -> None:
+def test_demo_ui_and_cases() -> None:
     client = TestClient(create_app())
     home = client.get("/")
     assert home.status_code == 200

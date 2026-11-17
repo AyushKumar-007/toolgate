@@ -322,7 +322,7 @@ function renderLabBriefing() {
       : "Expect ALLOW / decide";
   briefSteps.innerHTML = [
     "Natural-language task is sent to the project Ollama agent with native tool schemas.",
-    "Agent returns a structured tool call (name + arguments).",
+    "If the model returns no call, the preset's scripted call is sent and labeled as a fallback.",
     "toolgate runs context→schema→tenant→ownership→actions→arguments→approval.",
     "ALLOW executes SimulatedRuntime tools against the seeded store; DENY skips side effects.",
   ]
@@ -443,16 +443,20 @@ function applyLabPreset() {
   if (!preset) return;
   labTask.value = preset.task;
   labHint.textContent = preset.hint || "";
-  const key = `${preset.principal.user_id}|${preset.principal.tenant_id}|${preset.principal.role}`;
-  [...labPrincipal.options].forEach((opt) => {
-    if (opt.value === key) labPrincipal.value = key;
-  });
+  const match = (labStatus?.principals || []).find(
+    (item) => item.user_id === preset.principal.user_id
+  );
+  if (match) labPrincipal.value = match.user_id;
   renderLabBriefing();
 }
 
 function selectedPrincipal() {
-  const [user_id, tenant_id, role] = labPrincipal.value.split("|");
-  return { user_id, tenant_id, role };
+  const userId = labPrincipal.value;
+  return (labStatus?.principals || []).find((item) => item.user_id === userId) || {
+    user_id: userId,
+    tenant_id: "",
+    role: "",
+  };
 }
 
 async function loadLabStatus(options = {}) {
@@ -482,7 +486,7 @@ async function loadLabStatus(options = {}) {
   labPrincipal.innerHTML = (labStatus.principals || [])
     .map(
       (p) =>
-        `<option value="${p.user_id}|${p.tenant_id}|${p.role}">${p.user_id} · ${p.role} · ${p.tenant_id}</option>`
+        `<option value="${p.user_id}">${p.user_id} · ${p.role} · ${p.tenant_id}</option>`
     )
     .join("");
   if (preserve && [...labPreset.options].some((opt) => opt.value === presetId)) {
@@ -510,23 +514,33 @@ async function runLiveLab() {
   try {
     const preset = selectedLabPreset();
     const runId = `lab_${Math.random().toString(16).slice(2, 12)}`;
+
+    followFocus(flowRoot, { block: "start" });
+    clearFlow();
+
+    setStatus("Reseeding store for a clean live run…");
+    await fetch("/reset", { method: "POST" });
+    await sleep(200);
+    const sessionRes = await fetch("/lab/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: selectedPrincipal().user_id }),
+    });
+    if (!sessionRes.ok) throw new Error("Could not open a session for this principal");
+    const session = await sessionRes.json();
     const body = {
       run_id: runId,
       task: labTask.value.trim(),
-      principal: selectedPrincipal(),
+      access_token: session.session_id,
       mode: labMode,
       model: labStatus?.preferred_model || null,
       preset_id: preset?.id || null,
       allow_fallback: true,
     };
-
-    followFocus(flowRoot, { block: "start" });
-    clearFlow();
-
-    // Fresh seed each run so a delete can be repeated. A missing record would be a false DENY.
-    setStatus("Reseeding store for a clean live run…");
-    await fetch("/reset", { method: "POST" });
-    await sleep(200);
+    const authHeaders = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.session_id}`,
+    };
 
     // 1) Always relaunch: close both, then open Agent for thinking.
     setStatus("Relaunching desktops · closing previous Agent/Tools…");
@@ -543,7 +557,7 @@ async function runLiveLab() {
 
     const thinkRes = await fetch("/lab/thinking", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify(body),
     });
     if (!thinkRes.ok) throw new Error((await thinkRes.text()) || "Failed to start thinking");
@@ -553,20 +567,26 @@ async function runLiveLab() {
     setStatus("Agent is deciding which tool to call…");
     const proposeRes = await fetch("/lab/propose", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify(body),
     });
     if (!proposeRes.ok) throw new Error((await proposeRes.text()) || "Propose failed");
     const proposed = await proposeRes.json();
     const proposal = proposed.proposals?.[0];
+    const rejected = proposed.rejected || [];
+    const shown = proposal || rejected[0];
 
-    nodeAgent.textContent = proposal
-      ? `${proposal.name}(${Object.keys(proposal.arguments || {}).join(", ")})`
+    nodeAgent.textContent = shown
+      ? `${shown.name}(${Object.keys(shown.arguments || {}).join(", ")})`
       : "No tool proposal";
     setStatus(
       proposal
-        ? `Agent decided to call ${proposal.name} · animating Calling tool…`
-        : "Agent finished proposing"
+        ? proposed.agent_backend === "fallback"
+          ? `Preset scripted call ${proposal.name} · the model did not return a call`
+          : `Model proposed ${proposal.name}`
+        : rejected.length
+          ? `Model returned ${rejected[0].name || "a call"} · the gateway will judge the raw payload`
+          : "Agent finished proposing"
     );
     // Let Agent desktop play decided → calling animation.
     await sleep(1600);
@@ -576,13 +596,15 @@ async function runLiveLab() {
     setStatus("Gateway evaluating tool call on the workflow…");
     const enforceRes = await fetch("/lab/enforce", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         run_id: proposed.run_id,
         task: proposed.task,
+        access_token: session.session_id,
         principal: proposed.principal,
         mode: labMode,
         proposals: proposed.proposals,
+        rejected,
         agent_backend: proposed.agent_backend,
         model: proposed.model,
         preset_id: preset?.id || null,
@@ -600,7 +622,7 @@ async function runLiveLab() {
       threat_id: preset?.kind === "attack" ? "lab_live" : null,
       task: lab.task,
       principal: lab.principal,
-      proposals: lab.proposals,
+      proposals: lab.proposals?.length ? lab.proposals : rejected,
       prompt_only_would_execute: true,
     };
 
@@ -630,7 +652,7 @@ async function runLiveLab() {
 
     renderVerdict(lab.outcome, {
       principal: lab.principal,
-      proposal: lab.proposals?.[0],
+      proposal: lab.proposals?.[0] || rejected[0],
       agentPayload: {
         backend: lab.agent_backend,
         model: lab.model,

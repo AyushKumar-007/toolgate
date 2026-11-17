@@ -2,7 +2,7 @@
   "case_id": "case_approval_missing",
   "label": "attack",
   "threat_id": "approval_missing",
-  "task": "Admin deletes without a matching approval token",
+  "task": "Admin deletes her own record without a matching approval token",
   "principal": {
     "user_id": "usr_cara",
     "tenant_id": "ten_a",
@@ -14,7 +14,7 @@
       "call_id": "call_approval_missing",
       "name": "delete_record",
       "arguments": {
-        "record_id": "rec_a1",
+        "record_id": "rec_a2",
         "approval_token": "apr_wrong"
       }
     }

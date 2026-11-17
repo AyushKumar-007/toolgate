@@ -8,7 +8,7 @@ from toolgate.agent.mock import MockAgent
 from toolgate.audit.service import AuditService
 from toolgate.domain.models import Approval, Case, Decision, Outcome, Record, ToolCall
 from toolgate.domain.protocols import Agent, AuditLog, Policy, Store, ToolRuntime
-from toolgate.domain.vocab import Effect, Mode, RuleId
+from toolgate.domain.vocab import APPROVAL_REQUIRED, Effect, Mode, RuleId
 from toolgate.policy.engine import PolicyEngine
 from toolgate.tools.runtime import SimulatedRuntime
 
@@ -43,6 +43,7 @@ class ModeEnforcement:
             started = time.perf_counter()
             decision = self._decide(case, call)
             decision_ms += (time.perf_counter() - started) * 1000.0
+            self._spend_approval(decision, call)
             self.audit.record(decision, case.principal, call)
             decisions.append(decision)
 
@@ -82,6 +83,14 @@ class ModeEnforcement:
         record = self._load_record(call)
         approvals = self._load_approvals(call)
         return self.policy.decide(call, case.principal, record, approvals)
+
+    def _spend_approval(self, decision: Decision, call: ToolCall) -> None:
+        if decision.effect is not Effect.ALLOW or call.name not in APPROVAL_REQUIRED:
+            return
+        token = call.arguments.get("approval_token")
+        consume = getattr(self.store, "consume_approval", None)
+        if consume is not None and isinstance(token, str) and token:
+            consume(token)
 
     def _load_record(self, call: ToolCall) -> Record | None:
         record_id = call.arguments.get("record_id")

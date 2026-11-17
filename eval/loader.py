@@ -34,5 +34,11 @@ def load_suite(directory: Path | None = None) -> list[tuple[Case, Oracle]]:
     return [(load_case(path), load_oracle(path)) for path in case_paths(directory)]
 
 
+def load_folder(name: str) -> list[tuple[Case, Oracle]]:
+    folder = CASES_DIR / name
+    paths = sorted(path for path in folder.glob("case_*.json") if not path.name.endswith(".oracle.json"))
+    return [(load_case(path), load_oracle(path)) for path in paths]
+
+
 def threat_ids(directory: Path | None = None) -> set[str]:
     return {case.threat_id for case, _ in load_suite(directory) if case.threat_id}

@@ -1,4 +1,4 @@
-"""Project interface: an Ollama agent proposes tool calls and toolgate decides whether they run."""
+"""Interface: an Ollama agent proposes tool calls, and toolgate decides before execution."""
 
 from toolgate.lab.service import (
     LabEnforceRequest,

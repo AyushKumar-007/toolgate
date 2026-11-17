@@ -94,7 +94,7 @@ class FakeStore:
         return record
 
 
-def seeded_store() -> FakeStore:
+def demo_store() -> FakeStore:
     store = FakeStore()
     store.seed(
         records=[

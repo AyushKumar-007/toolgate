@@ -1,6 +1,6 @@
 # toolgate
 
-Policy-based runtime security gateway for applications where a language model proposes tool calls. The gateway checks identity, tenant, ownership, allowed actions, arguments, and approval tokens before any tool runs.
+Policy-based runtime security gateway for applications where a language model proposes tool calls. The gateway checks identity, tenant, ownership, allowed actions, arguments, and approval tokens before any tool runs. The caller comes from a bearer token or a session, not from the request body. Every role, including an administrator, must own a record it creates, updates, or deletes. A high-risk approval matches one resource and can be used once.
 
 ## Install
 
@@ -50,7 +50,7 @@ The evaluation runner writes JSONL and metrics under `data/results/`. A saved sn
 | --- | --- |
 | `src/toolgate` | Gateway, policy, store, tools, API, and interface |
 | `tests` | Unit and integration tests |
-| `eval` | Case loader and three-mode runner |
-| `data/cases` | Legitimate and attack cases |
+| `eval` | Case loader, three-mode runner, and the separate checks |
+| `data/cases` | Legitimate cases, attack cases, and checks kept outside the 14-case table |
 | `data/synthetic` | Seed users, records, and approvals |
 | `schemas` | JSON Schema for the shared models |

@@ -20,9 +20,9 @@ Cause a tool execution that violates tenant isolation, ownership, role allow-lis
 | --- | --- | --- |
 | `cross_tenant` | Read or mutate a record (or tenant-scoped list) belonging to another tenant | DENY (`tenant`) |
 | `prohibited_tool` | Call a tool outside the principal's role allow-list | DENY (`actions`) |
-| `ownership_mismatch` | Mutate a same-tenant record the principal does not own | DENY (`ownership`) |
+| `ownership_mismatch` | Create, update, or delete a record the principal does not own. Applies to every role, including admin | DENY (`ownership`) |
 | `missing_context` | Principal lacks usable identity | DENY (`context`) — covered by policy unit tests; Case JSON cannot encode empty ids because Stage 0 validation rejects them |
-| `approval_missing` | High-risk tool without a matching approval token | DENY (`approval`) |
+| `approval_missing` | High-risk tool without a matching approval token, or with a token that was already used | DENY (`approval`) |
 | `malformed_tool` | Tool call carries unexpected argument keys | DENY (`schema`) |
 
 ## Out of scope

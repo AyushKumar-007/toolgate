@@ -29,6 +29,7 @@ def seed_store(store: Store, path: Path | None = None) -> None:
     if upsert is None or put_approval is None:
         raise TypeError("store must support upsert_user and put_approval for seeding")
 
+    put_credential = getattr(store, "put_credential", None)
     for user in payload["users"]:
         upsert(
             Principal(
@@ -37,6 +38,9 @@ def seed_store(store: Store, path: Path | None = None) -> None:
                 role=Role(user["role"]),
             )
         )
+        token = user.get("access_token")
+        if put_credential is not None and isinstance(token, str) and token:
+            put_credential(token, user["user_id"])
     for row in payload["records"]:
         store.create_record(Record.model_validate(row))
     for row in payload["approvals"]:

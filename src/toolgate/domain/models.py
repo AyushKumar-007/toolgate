@@ -49,6 +49,7 @@ class Approval(APIModel):
     resource_id: str | None = None
     user_id: str = Field(min_length=1)
     expires_at: datetime | None = None
+    consumed_at: datetime | None = None
 
 
 class ToolCall(APIModel):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from toolgate.domain.models import Approval, AuditRecord, Principal, Record
@@ -43,7 +43,12 @@ class SqliteStore:
               tool_name TEXT NOT NULL,
               resource_id TEXT,
               user_id TEXT NOT NULL,
-              expires_at TEXT
+              expires_at TEXT,
+              consumed_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS credentials (
+              token TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS audits (
               audit_id TEXT PRIMARY KEY,
@@ -56,6 +61,21 @@ class SqliteStore:
               tool_name TEXT NOT NULL,
               created_at TEXT NOT NULL
             );
+            """
+        )
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(approvals)")}
+        if "consumed_at" not in columns:
+            self._conn.execute("ALTER TABLE approvals ADD COLUMN consumed_at TEXT")
+        self._conn.commit()
+
+    def clear_all(self) -> None:
+        self._conn.executescript(
+            """
+            DELETE FROM audits;
+            DELETE FROM approvals;
+            DELETE FROM credentials;
+            DELETE FROM records;
+            DELETE FROM users;
             """
         )
         self._conn.commit()
@@ -75,15 +95,17 @@ class SqliteStore:
 
     def put_approval(self, approval: Approval) -> Approval:
         expires = approval.expires_at.isoformat() if approval.expires_at else None
+        consumed = approval.consumed_at.isoformat() if approval.consumed_at else None
         self._conn.execute(
             """
-            INSERT INTO approvals (token, tool_name, resource_id, user_id, expires_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO approvals (token, tool_name, resource_id, user_id, expires_at, consumed_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(token) DO UPDATE SET
               tool_name = excluded.tool_name,
               resource_id = excluded.resource_id,
               user_id = excluded.user_id,
-              expires_at = excluded.expires_at
+              expires_at = excluded.expires_at,
+              consumed_at = excluded.consumed_at
             """,
             (
                 approval.token,
@@ -91,6 +113,7 @@ class SqliteStore:
                 approval.resource_id,
                 approval.user_id,
                 expires,
+                consumed,
             ),
         )
         self._conn.commit()
@@ -163,6 +186,25 @@ class SqliteStore:
     def export_records(self, tenant_id: str) -> list[Record]:
         return self.list_records(tenant_id)
 
+    def put_credential(self, token: str, user_id: str) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO credentials (token, user_id) VALUES (?, ?)
+            ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id
+            """,
+            (token, user_id),
+        )
+        self._conn.commit()
+
+    def get_user_by_token(self, token: str) -> Principal | None:
+        row = self._conn.execute(
+            "SELECT user_id FROM credentials WHERE token = ?",
+            (token,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self.get_user(row["user_id"])
+
     def get_user(self, user_id: str) -> Principal | None:
         row = self._conn.execute(
             "SELECT * FROM users WHERE user_id = ?", (user_id,)
@@ -189,13 +231,26 @@ class SqliteStore:
         if row is None:
             return None
         expires = row["expires_at"]
+        consumed = row["consumed_at"]
         return Approval(
             token=row["token"],
             tool_name=ToolName(row["tool_name"]),
             resource_id=row["resource_id"],
             user_id=row["user_id"],
             expires_at=datetime.fromisoformat(expires) if expires else None,
+            consumed_at=datetime.fromisoformat(consumed) if consumed else None,
         )
+
+    def consume_approval(self, token: str) -> None:
+        self._conn.execute(
+            """
+            UPDATE approvals
+            SET consumed_at = ?
+            WHERE token = ? AND consumed_at IS NULL
+            """,
+            (datetime.now(timezone.utc).isoformat(), token),
+        )
+        self._conn.commit()
 
     def save_audit(self, record: AuditRecord) -> AuditRecord:
         self._conn.execute(

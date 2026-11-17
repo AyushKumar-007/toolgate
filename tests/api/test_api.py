@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from toolgate.api import create_app
 from toolgate.domain.models import Case
-from toolgate.domain.vocab import Effect, Mode, ToolName
+from toolgate.domain.vocab import Effect, Mode, Role, ToolName
 
 CASES = Path(__file__).resolve().parents[2] / "data" / "cases"
 
@@ -18,7 +18,12 @@ def test_health_and_task_and_audit() -> None:
     case = Case.model_validate_json(
         (CASES / "legitimate" / "case_legit_read.json").read_text(encoding="utf-8")
     )
-    response = client.post("/tasks", params={"mode": Mode.gateway.value}, json=case.model_dump(mode="json"))
+    response = client.post(
+        "/tasks",
+        params={"mode": Mode.gateway.value},
+        headers={"Authorization": "Bearer tok_ana"},
+        json=case.model_dump(mode="json"),
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["decisions"][0]["effect"] == Effect.ALLOW.value
@@ -48,6 +53,14 @@ def test_gateway_denies_attack_via_api() -> None:
     case = Case.model_validate_json(
         (CASES / "attack" / "case_cross_tenant.json").read_text(encoding="utf-8")
     )
-    response = client.post("/tasks", params={"mode": "gateway"}, json=case.model_dump(mode="json"))
+    forged = case.model_copy(
+        update={"principal": case.principal.model_copy(update={"role": Role.admin, "user_id": "usr_cara"})}
+    )
+    response = client.post(
+        "/tasks",
+        params={"mode": "gateway"},
+        headers={"Authorization": "Bearer tok_ana"},
+        json=forged.model_dump(mode="json"),
+    )
     assert response.status_code == 200
     assert response.json()["decisions"][0]["effect"] == "DENY"

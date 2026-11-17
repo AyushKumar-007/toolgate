@@ -1,12 +1,17 @@
-"""HTTP API: run tasks, list audits, register approvals, and serve the project interface."""
+"""HTTP API: run tasks, list audits, register approvals, and serve the interface."""
 
 from __future__ import annotations
 
+import os
+import secrets
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -27,29 +32,108 @@ from toolgate.store.seed import seed_store
 from toolgate.store.sqlite import SqliteStore
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
-BASE = "http://127.0.0.1:8000"
+RUNTIME_DB = Path(__file__).resolve().parents[3] / "data" / "runtime" / "toolgate.sqlite"
+SESSION_TTL = timedelta(minutes=30)
+
+
+class SessionBody(BaseModel):
+    user_id: str = Field(min_length=1)
+
+
+@dataclass
+class _Session:
+    user_id: str
+    expires_at: datetime
+
+
+def _presented_token(authorization: str | None, body) -> str | None:
+    scheme, _, raw = (authorization or "").partition(" ")
+    if scheme.lower() == "bearer" and raw.strip():
+        return raw.strip()
+    token = getattr(body, "access_token", None)
+    return token if isinstance(token, str) and token else None
+
+
+def _bind_principal(state: AppState, body, authorization: str | None = None):
+    token = _presented_token(authorization, body)
+    if not token:
+        raise HTTPException(status_code=401, detail="access token required")
+    principal = state.resolve_actor(token)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="unknown access token")
+    return body.model_copy(update={"principal": principal})
+
+
+def _principal_from_header(state: AppState, authorization: str | None):
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="access token required")
+    principal = state.resolve_actor(token.strip())
+    if principal is None:
+        raise HTTPException(status_code=401, detail="unknown access token")
+    return principal
 
 
 class AppState:
-    def __init__(self, store: SqliteStore | None = None) -> None:
-        self.store = store or SqliteStore(":memory:")
-        self._owned_store = store is None
-        if store is None:
-            seed_store(self.store)
+    def __init__(
+        self,
+        store: SqliteStore | None = None,
+        *,
+        durable_path: str | Path | None = None,
+    ) -> None:
+        self.sessions: dict[str, _Session] = {}
+        if store is not None:
+            self.store = store
+            self._owned_store = False
+        else:
+            path = durable_path
+            if path is None and "PYTEST_CURRENT_TEST" not in os.environ:
+                path = RUNTIME_DB
+            if path is None:
+                self.store = SqliteStore(":memory:")
+            else:
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                self.store = SqliteStore(path)
+            self._owned_store = True
+            if self.store.get_user("usr_ana") is None:
+                seed_store(self.store)
         self.audit = AuditService(self.store)
+        self.audit.adopt(self.store.list_audits())
         self.lab = LabService(self.store, audit=self.audit)
         self.latest_lab: dict[str, Any] | None = None
 
     def reset(self) -> None:
-        """Re-seed a fresh in-memory store for user-study sessions."""
+        """Re-seed the store. Clears the lab session table and the audit rows."""
         if not self._owned_store:
             raise RuntimeError("cannot reset an externally supplied store")
-        self.store.close()
-        self.store = SqliteStore(":memory:")
+        self.store.clear_all()
         seed_store(self.store)
+        self.sessions.clear()
         self.audit = AuditService(self.store)
         self.lab = LabService(self.store, audit=self.audit)
         self.latest_lab = None
+
+    def open_session(self, user_id: str) -> dict[str, Any]:
+        principal = self.store.get_user(user_id)
+        if principal is None:
+            raise KeyError(user_id)
+        session_id = secrets.token_urlsafe(32)
+        expires = datetime.now(timezone.utc) + SESSION_TTL
+        self.sessions[session_id] = _Session(user_id=user_id, expires_at=expires)
+        return {
+            "session_id": session_id,
+            "expires_at": expires.isoformat(),
+            "principal": principal.model_dump(mode="json"),
+        }
+
+    def resolve_actor(self, token: str) -> Any:
+        session = self.sessions.get(token)
+        if session is not None:
+            if session.expires_at <= datetime.now(timezone.utc):
+                self.sessions.pop(token, None)
+                return None
+            return self.store.get_user(session.user_id)
+        return self.store.get_user_by_token(token)
 
     def enforcement(self, mode: Mode) -> ModeEnforcement:
         return ModeEnforcement(mode, self.store, audit=self.audit)
@@ -65,7 +149,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
     @app.get("/")
-    def home() -> FileResponse:
+    def demo_ui() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html")
 
     @app.get("/lab/agent")
@@ -92,6 +176,13 @@ def create_app(state: AppState | None = None) -> FastAPI:
     def lab_status() -> dict:
         return app_state.lab.status()
 
+    @app.post("/lab/session")
+    def lab_session(body: SessionBody) -> dict:
+        try:
+            return app_state.open_session(body.user_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="unknown user") from None
+
     @app.get("/lab/latest")
     def lab_latest() -> dict:
         if app_state.latest_lab is None:
@@ -102,17 +193,20 @@ def create_app(state: AppState | None = None) -> FastAPI:
     def lab_desktop_close() -> dict:
         return close_companions()
 
+    def _desktop_base(request: Request) -> str:
+        return str(request.base_url).rstrip("/")
+
     @app.post("/lab/desktop/agent")
-    def lab_desktop_agent() -> dict:
+    def lab_desktop_agent(request: Request) -> dict:
         try:
-            return spawn_window("agent", BASE, force=True)
+            return spawn_window("agent", _desktop_base(request), force=True)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/lab/desktop/tools")
-    def lab_desktop_tools() -> dict:
+    def lab_desktop_tools(request: Request) -> dict:
         try:
-            return spawn_window("tools", BASE, force=True)
+            return spawn_window("tools", _desktop_base(request), force=True)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -128,8 +222,12 @@ def create_app(state: AppState | None = None) -> FastAPI:
         }
 
     @app.post("/lab/thinking")
-    def lab_thinking(body: LabRunRequest) -> dict:
+    def lab_thinking(
+        body: LabRunRequest,
+        authorization: str | None = Header(default=None),
+    ) -> dict:
         """Publish thinking state before Ollama is called (for desktop animation)."""
+        body = _bind_principal(app_state, body, authorization)
         run_id = body.run_id or f"lab_{uuid.uuid4().hex[:10]}"
         model = body.model or app_state.lab.default_model
         payload = {
@@ -156,7 +254,11 @@ def create_app(state: AppState | None = None) -> FastAPI:
         return payload
 
     @app.post("/lab/propose", response_model=LabProposeResponse)
-    def lab_propose(body: LabRunRequest) -> LabProposeResponse:
+    def lab_propose(
+        body: LabRunRequest,
+        authorization: str | None = Header(default=None),
+    ) -> LabProposeResponse:
+        body = _bind_principal(app_state, body, authorization)
         try:
             proposed = app_state.lab.propose(body)
             payload = proposed.model_dump(mode="json")
@@ -173,7 +275,11 @@ def create_app(state: AppState | None = None) -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/lab/enforce", response_model=LabRunResponse)
-    def lab_enforce(body: LabEnforceRequest) -> LabRunResponse:
+    def lab_enforce(
+        body: LabEnforceRequest,
+        authorization: str | None = Header(default=None),
+    ) -> LabRunResponse:
+        body = _bind_principal(app_state, body, authorization)
         # Keep status=evaluating until the control UI reveals the verdict.
         pending = dict(app_state.latest_lab or {})
         pending.update(
@@ -208,16 +314,20 @@ def create_app(state: AppState | None = None) -> FastAPI:
         return payload
 
     @app.post("/lab/run", response_model=LabRunResponse)
-    def lab_run(body: LabRunRequest) -> LabRunResponse:
+    def lab_run(
+        body: LabRunRequest,
+        authorization: str | None = Header(default=None),
+    ) -> LabRunResponse:
         """Compatibility: propose + enforce in one call."""
         run_id = body.run_id or f"lab_{uuid.uuid4().hex[:10]}"
         body = body.model_copy(update={"run_id": run_id})
-        lab_thinking(body)
-        proposed = lab_propose(body)
+        lab_thinking(body, authorization)
+        proposed = lab_propose(body, authorization)
         return lab_enforce(
             LabEnforceRequest(
                 run_id=proposed.run_id,
                 task=proposed.task,
+                access_token=body.access_token,
                 principal=proposed.principal,
                 mode=body.mode,
                 proposals=proposed.proposals,
@@ -226,6 +336,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
                 preset_id=body.preset_id,
                 agent_raw=proposed.agent_raw,
                 events=proposed.events,
+                rejected=proposed.rejected,
             )
         )
 
@@ -241,7 +352,10 @@ def create_app(state: AppState | None = None) -> FastAPI:
     def run_task(
         case: Case,
         mode: Mode = Query(default=Mode.gateway),
+        authorization: str | None = Header(default=None),
     ) -> Outcome:
+        principal = _principal_from_header(app_state, authorization)
+        case = case.model_copy(update={"principal": principal})
         return app_state.enforcement(mode).run(case)
 
     @app.get(GET_AUDIT, response_model=list[AuditRecord])

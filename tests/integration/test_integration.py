@@ -44,11 +44,12 @@ def test_api_modes_reset_and_contrast() -> None:
     )
     payload = case.model_dump(mode="json")
 
-    denied = client.post("/tasks", params={"mode": "gateway"}, json=payload)
+    headers = {"Authorization": "Bearer tok_ana"}
+    denied = client.post("/tasks", params={"mode": "gateway"}, headers=headers, json=payload)
     assert denied.status_code == 200
     assert denied.json()["decisions"][0]["effect"] == "DENY"
 
-    allowed = client.post("/tasks", params={"mode": "direct"}, json=payload)
+    allowed = client.post("/tasks", params={"mode": "direct"}, headers=headers, json=payload)
     assert allowed.status_code == 200
     assert allowed.json()["decisions"][0]["effect"] == "ALLOW"
 

@@ -1,0 +1,4 @@
+{
+  "case_id": "case_border_own_read",
+  "expected": [{"call_id": "call_border_own_read", "effect": "ALLOW"}]
+}
